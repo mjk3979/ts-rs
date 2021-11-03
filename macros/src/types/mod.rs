@@ -1,6 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Fields, Generics, ItemEnum, ItemStruct, Result, Variant};
+use syn::{Fields, Generics, ItemEnum, ItemStruct, Result, Variant, GenericParam};
 
 use crate::{
     attr::{EnumAttr, FieldAttr, Inflection, StructAttr},
@@ -53,18 +53,33 @@ pub(crate) fn r#enum(s: &ItemEnum) -> Result<DerivedTS> {
 
     let mut formatted_variants = vec![];
     let mut dependencies = Dependencies::default();
+    let generic_args = match &s.generics.params {
+        params if !params.is_empty() => {
+            let expanded_params = params
+                .iter()
+                .filter_map(|param| match param {
+                    GenericParam::Type(type_param) => Some(type_param.ident.to_string()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            quote!(format!("<{}>", #expanded_params))
+        }
+        _ => quote!("".to_owned()),
+    };
     for variant in &s.variants {
         format_variant(
             &mut formatted_variants,
             &mut dependencies,
             &enum_attr,
             variant,
+            &s.generics,
         )?;
     }
 
     Ok(DerivedTS {
         inline: quote!(vec![#(#formatted_variants),*].join(" | ")),
-        decl: quote!(format!("type {} = {};", #name, Self::inline())),
+        decl: quote!(format!("type {}{} = {};", #name, #generic_args, Self::inline())),
         inline_flattened: None,
         dependencies,
         name,
@@ -76,6 +91,7 @@ fn format_variant(
     dependencies: &mut Dependencies,
     enum_attr: &EnumAttr,
     variant: &Variant,
+    generics: &Generics,
 ) -> Result<()> {
     let FieldAttr {
         type_override,
@@ -106,7 +122,6 @@ fn format_variant(
         _ => {}
     };
 
-    let generics = Generics::default();
     let variant_type = type_def(&name, &None, &variant.fields, &generics)?;
     let variant_dependencies = variant_type.dependencies;
     let inline_type = variant_type.inline;
