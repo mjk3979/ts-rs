@@ -29,7 +29,14 @@ pub fn format_type(ty: &Type, dependencies: &mut Dependencies, generics: &Generi
     dependencies.push_or_append_from(ty);
 
     match extract_type_args(ty) {
-        None => quote!(<#ty as ts_rs::TS>::name()),
+        None => {
+            if let Type::Tuple(tuple) = ty {
+                let elems = tuple.elems.iter().map(|t| format_type(t, dependencies, generics));
+                quote!(format!("[{}]", vec![#(#elems),*].join(", ")))
+            } else {
+                quote!(<#ty as ts_rs::TS>::name())
+            }
+        },
         Some(type_args) => {
             let args = type_args
                 .iter()
