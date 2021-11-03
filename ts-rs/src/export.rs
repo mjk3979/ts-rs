@@ -188,7 +188,6 @@ fn import_path(from: &Path, import: &Path) -> String {
         Some(Component::Normal(_)) => format!("./{}", rel_path.to_string_lossy()),
         _ => rel_path.to_string_lossy().into(),
     }
-    .trim_end_matches(".ts")
     .to_owned()
 }
 
